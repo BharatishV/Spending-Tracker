@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="w_bg">#142026</color>
+    <color name="w_ink">#E6EFEC</color>
+    <color name="w_muted">#9DB0B5</color>
+    <color name="w_button">#43C2B2</color>
+    <color name="w_button_text">#062622</color>
+</resources>

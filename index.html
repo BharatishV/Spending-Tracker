@@ -1,0 +1,753 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light}body{margin:0}</style>
+<title>Spending tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single-column phone-first app. Bottom tab bar on small screens, centered 720px column on wide ones. */
+:root {
+  --bg: #EEF2F1;
+  --surface: #FFFFFF;
+  --surface-2: #E5ECEA;
+  --ink: #12202A;
+  --ink-2: #4B5E69;
+  --line: #D3DDDA;
+  --accent: #0A7468;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D4EBE6;
+  --warn: #B4400F;
+  --warn-soft: #F8E3D8;
+  --good: #1F7A3E;
+  --good-soft: #DCEFE2;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1519; --surface: #142026; --surface-2: #1C2B32; --ink: #E6EFEC; --ink-2: #9DB0B5;
+    --line: #26373E; --accent: #43C2B2; --accent-ink: #062622; --accent-soft: #15353A;
+    --warn: #F08A5B; --warn-soft: #3A2218; --good: #6CCB8A; --good-soft: #17301F; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1519; --surface: #142026; --surface-2: #1C2B32; --ink: #E6EFEC; --ink-2: #9DB0B5;
+  --line: #26373E; --accent: #43C2B2; --accent-ink: #062622; --accent-soft: #15353A;
+  --warn: #F08A5B; --warn-soft: #3A2218; --good: #6CCB8A; --good-soft: #17301F; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 96px;
+}
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 720px; margin: 0 auto; min-width: 0; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-2); }
+.small { font-size: 13px; }
+.label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+
+/* inputs and buttons */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
+  width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 12px; outline: none;
+}
+textarea { min-height: 132px; resize: vertical; line-height: 1.5; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: var(--ink);
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--warn); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 430px) { .grid2.stack { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+.stack-gap { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.err { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.ok { background: var(--good-soft); color: var(--good); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.hint { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+
+/* auth */
+.auth { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding-block: 32px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand b { font-family: var(--f-display); font-size: 34px; letter-spacing: -0.03em; }
+.brand i { font-style: normal; font-family: var(--f-mono); color: var(--accent); font-size: 22px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { border: 0; background: transparent; padding: 9px; border-radius: 9px; cursor: pointer; font-weight: 600; color: var(--ink-2); }
+.seg button[aria-pressed=true] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.pw { position: relative; }
+.pw button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--accent); font-weight: 600; padding: 8px; cursor: pointer; }
+
+/* app header */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; justify-content: space-between; align-items: center; padding-block: 14px 10px; gap: 12px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.top .brand b { font-size: 24px; }
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 36vw; }
+
+/* tab bar */
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line);
+  display: flex; justify-content: center;
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+}
+.tabs nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: 100%; max-width: 720px; }
+.tabs a { text-align: center; padding: 9px 4px; border-radius: 10px; color: var(--ink-2); text-decoration: none; font-weight: 600; font-size: 13px; }
+.tabs a[aria-current=page] { background: var(--accent-soft); color: var(--accent); }
+
+/* overview */
+.hero { display: flex; flex-direction: column; gap: 4px; }
+.hero .big { font-family: var(--f-display); font-size: clamp(38px, 11vw, 56px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+.month { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.month button { width: 40px; height: 40px; padding: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stats div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.stats .num { font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+.bar { grid-column: 1 / -1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.empty { text-align: center; padding: 28px 12px; color: var(--ink-2); }
+
+/* list */
+.day { display: flex; justify-content: space-between; padding: 14px 2px 6px; }
+.tx { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px; min-width: 0; }
+.tx > button.head {
+  width: 100%; text-align: left; background: transparent; border: 0; padding: 12px 14px; cursor: pointer;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
+}
+.tx .m { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx .c { font-size: 13px; color: var(--ink-2); }
+.tx .a { font-family: var(--f-mono); font-weight: 500; text-align: right; }
+.tx .a.in { color: var(--good); }
+.tx .edit { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 12px; border-top: 1px dashed var(--line); }
+.pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.filters { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; }
+
+/* parse preview */
+.cand { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cand.off { opacity: 0.55; }
+.cand .src { font-size: 12px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; overflow-wrap: anywhere; }
+.chk { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 99px; font-weight: 600; z-index: 20; max-width: calc(100vw - 32px); }
+.codebox { font-family: var(--f-mono); font-size: 12px; max-height: 120px; }
+@media (prefers-reduced-motion: no-preference) { .tx, .cand { transition: opacity .15s; } }
+</style>
+
+<div id="app"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- storage (always guarded) ---------- */
+  var mem = {};
+  function lsGet(k, d) {
+    try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return k in mem ? mem[k] : d; }
+  }
+  function lsSet(k, v) {
+    mem[k] = v;
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+  }
+
+  /* ---------- helpers ---------- */
+  var $app = document.getElementById("app");
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function ymd(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function today() { return ymd(new Date()); }
+  var inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2, minimumFractionDigits: 0 });
+  function money(n) { return "\u20B9" + inr.format(Math.round(n * 100) / 100); }
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function prettyDate(s) {
+    var p = s.split("-"); if (p.length !== 3) return s;
+    var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    var t = today(); var y = new Date(); y.setDate(y.getDate() - 1);
+    if (s === t) return "Today";
+    if (s === ymd(y)) return "Yesterday";
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()] + ", " + d.getDate() + " " + MONTHS[d.getMonth()];
+  }
+  var toastTimer;
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  /* ---------- categories ---------- */
+  var CATS = [
+    ["Food & Dining", ["swiggy", "zomato", "restaurant", "cafe", "pizza", "dominos", "domino's", "mcdonalds", "mcdonald's", "kfc", "burger", "starbucks", "biryani", "food", "dinner", "lunch", "breakfast", "snacks", "bakery", "chai", "tea", "coffee", "dhaba", "eatery", "haldiram", "ice cream", "dining"]],
+    ["Groceries", ["bigbasket", "blinkit", "zepto", "dmart", "grocery", "groceries", "vegetables", "vegetable", "instamart", "milk", "supermarket", "reliance fresh", "more retail", "fruits", "kirana", "provisions"]],
+    ["Subscriptions", ["netflix", "spotify", "prime video", "amazon prime", "hotstar", "youtube premium", "subscription", "icloud", "google one", "apple music", "sonyliv", "zee5", "audible", "chatgpt", "claude"]],
+    ["Travel", ["irctc", "makemytrip", "goibibo", "redbus", "flight", "hotel", "indigo", "airbnb", "oyo", "train ticket", "air india", "vistara", "akasa", "cleartrip", "holiday", "trip", "resort"]],
+    ["Fuel", ["petrol", "diesel", "hpcl", "bpcl", "iocl", "indian oil", "indianoil", "shell", "fuel", "petrol pump", "cng"]],
+    ["Transport", ["uber", "ola", "rapido", "metro", "bus", "cab", "auto", "parking", "toll", "fastag", "namma yatri", "taxi", "rickshaw", "bmtc", "dmrc"]],
+    ["Bills & Utilities", ["electricity", "bescom", "tneb", "msedcl", "water bill", "gas bill", "broadband", "airtel", "jio", "vodafone", "bsnl", "recharge", "dth", "tata play", "tatasky", "postpaid", "prepaid", "utility", "bill", "bill payment", "act fibernet", "piped gas", "mahanagar gas", "lpg", "cylinder"]],
+    ["Rent & Housing", ["rent", "maintenance", "society", "landlord", "housing", "nobroker", "brokerage", "deposit"]],
+    ["Home & Repairs", ["plumber", "electrician", "repair", "furniture", "ikea", "pepperfry", "urban company", "urbanclap", "carpenter", "paint", "hardware", "appliance"]],
+    ["Health", ["pharmacy", "apollo", "medplus", "hospital", "clinic", "doctor", "medicine", "medicines", "lab", "practo", "1mg", "pharmeasy", "diagnostic", "dental", "dentist", "netmeds", "health"]],
+    ["Insurance", ["insurance", "lic", "premium", "policybazaar", "star health", "hdfc ergo", "acko", "digit"]],
+    ["EMI & Loans", ["emi", "loan", "bajaj finserv", "credit card bill", "card payment", "repayment", "home loan", "personal loan"]],
+    ["Investments", ["mutual fund", "sip", "zerodha", "groww", "upstox", "stocks", "shares", "nps", "ppf", "gold", "kuvera", "coin", "demat", "investment"]],
+    ["Education", ["school", "college", "tuition", "course", "udemy", "coursera", "exam", "books", "book", "stationery", "byju", "unacademy", "university", "coaching", "education"]],
+    ["Entertainment", ["movie", "bookmyshow", "pvr", "inox", "game", "gaming", "concert", "cinema", "steam", "playstation", "event", "amusement", "club", "pub", "bar"]],
+    ["Personal Care", ["salon", "spa", "nykaa", "haircut", "gym", "cult", "cult.fit", "grooming", "barber", "parlour", "parlor", "beauty", "massage", "yoga"]],
+    ["Shopping", ["amazon", "flipkart", "myntra", "ajio", "meesho", "mall", "store", "clothes", "clothing", "shoes", "shopping", "decathlon", "lifestyle", "westside", "zara", "h&m", "croma", "reliance digital", "electronics", "tata cliq", "snapdeal"]],
+    ["Gifts & Donations", ["gift", "gifts", "donation", "temple", "charity", "donate", "ngo", "wedding", "birthday"]],
+    ["Pets & Kids", ["pet", "vet", "dog", "cat food", "toys", "daycare", "creche", "diapers", "supertails", "firstcry"]],
+    ["Cash Withdrawal", ["atm", "cash withdrawal", "cash withdrawn", "cash"]],
+    ["Fees & Charges", ["charges", "fee", "fees", "penalty", "gst", "annual fee", "service charge", "late fee", "processing fee", "fine", "challan"]],
+    ["Transfers", ["transferred", "neft", "imps", "rtgs", "sent to", "trf", "transfer", "upi"]],
+    ["Other", []]
+  ];
+  var CAT_NAMES = CATS.map(function (c) { return c[0]; });
+  var CAT_RX = CATS.map(function (c) {
+    return [c[0], c[1].map(function (k) { return new RegExp("(^|[^a-z0-9])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z0-9]|$)", "i"); })];
+  });
+  function guessCategory(text) {
+    for (var i = 0; i < CAT_RX.length; i++) {
+      var rxs = CAT_RX[i][1];
+      for (var j = 0; j < rxs.length; j++) if (rxs[j].test(text)) return CAT_RX[i][0];
+    }
+    return "Other";
+  }
+
+  /* ---------- message parser ---------- */
+  var AMT_RX = /(?:rs\.?|inr|\u20B9)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i;
+  var DEBIT_RX = /\b(debited|spent|paid|payment of|purchase|purchased|withdrawn|withdrawal|sent|txn|transaction of|deducted|charged|bought)\b/i;
+  var CREDIT_RX = /\b(credited|received|refund|refunded|deposited|cashback|reversed)\b/i;
+  var STOP_RX = /\s+(?:on|via|ref|using|from|avl|bal|balance|upi|dated|date|at\s+\d|txn|transaction|a\/c|acct|account|no\.|is|has|was|and|your|if|call|not you|\d{1,2}[-\/]).*$/i;
+
+  function parseDate(text) {
+    var m = text.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/);
+    if (m) {
+      var d = +m[1], mo = +m[2], y = +m[3]; if (y < 100) y += 2000;
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return y + "-" + pad(mo) + "-" + pad(d);
+    }
+    m = text.match(/(\d{1,2})[-\s]([A-Za-z]{3})[a-z]*[-\s,]*(\d{2,4})/);
+    if (m) {
+      var idx = MONTHS.map(function (x) { return x.toLowerCase(); }).indexOf(m[2].toLowerCase());
+      if (idx >= 0) { var yy = +m[3]; if (yy < 100) yy += 2000; return yy + "-" + pad(idx + 1) + "-" + pad(+m[1]); }
+    }
+    if (/\byesterday\b/i.test(text)) { var y2 = new Date(); y2.setDate(y2.getDate() - 1); return ymd(y2); }
+    return today();
+  }
+
+  function cleanMerchant(s) {
+    s = (s || "").replace(STOP_RX, "").replace(/[.,;:\-\s]+$/, "").replace(/^[\s:\-]+/, "").trim();
+    s = s.replace(/@[a-z0-9.\-]+$/i, function (m) { return m; });
+    return s.length > 40 ? s.slice(0, 40) : s;
+  }
+
+  function parseOne(msg) {
+    var text = msg.replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    var amt = null, m = text.match(AMT_RX);
+    if (m) amt = parseFloat(m[1].replace(/,/g, ""));
+    var rest = text;
+    if (amt == null) {
+      var t2 = text
+        .replace(/\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}/g, " ")
+        .replace(/(?:a\/c|acct?|account|card|ending|xx+|x+)\s*\*?[x*]*\d+/gi, " ");
+      var n = t2.match(/(^|[^0-9a-z])([0-9][0-9,]*(?:\.[0-9]{1,2})?)(?![0-9a-z])/i);
+      if (n) amt = parseFloat(n[2].replace(/,/g, ""));
+    }
+    if (amt == null || !isFinite(amt) || amt <= 0) return null;
+
+    var isCredit = CREDIT_RX.test(text) && !DEBIT_RX.test(text);
+    var merchant = "";
+    var mtext = text.replace(/\d{1,2}[-\/.](?:\d{1,2}|[A-Za-z]{3})[-\/.]\d{2,4}/g, " ").replace(/\s+/g, " ");
+    var pats = [
+      /\b(?:trf to|transfer to|paid to|sent to|payment to|to vpa|vpa|towards|info[:\-]?\s*(?:upi\/[a-z]+\/\d+\/)?|merchant[:\-]?|spent at|purchase at|at)\s+([^\n]{2,60})/i,
+      /\bto\s+([^\n]{2,60})/i,
+      /\bby\s+([^\n]{2,60})/i,
+      /\b(?:on|for)\s+([^\n]{2,60})/i
+    ];
+    if (!m) pats.unshift(/\b(?:on|for)\s+([^\n]{2,60})/i);
+    for (var i = 0; i < pats.length && !merchant; i++) {
+      var mm = mtext.match(pats[i]);
+      if (mm) {
+        var cand = cleanMerchant(mm[1]);
+        if (cand && !/^\d+$/.test(cand) && !/^(?:rs|inr|a\/c|your|the)\b/i.test(cand)) merchant = cand;
+      }
+    }
+    if (!merchant) {
+      merchant = text.replace(AMT_RX, "").replace(/(^|\s)[0-9][0-9,]*(?:\.[0-9]{1,2})?(?=\s|$)/, " ").replace(/\b(spent|paid|sent|received|debited|credited)\b/gi, "").replace(/\s+/g, " ").trim().slice(0, 40);
+    }
+    return {
+      amount: amt,
+      type: isCredit ? "credit" : "debit",
+      merchant: merchant || "Unknown",
+      category: isCredit ? "Other" : guessCategory(text + " " + merchant),
+      date: parseDate(text),
+      source: msg.trim()
+    };
+  }
+
+  function parseMessages(raw) {
+    var blocks = raw.split(/\n\s*\n/).map(function (b) { return b.trim(); }).filter(Boolean);
+    var msgs = [];
+    blocks.forEach(function (b) {
+      var lines = b.split(/\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+      if (lines.length > 1 && lines.every(function (l) { return /\d/.test(l); }) && lines.every(function (l) { return !/^(?:avl|bal|ref|info|if not)/i.test(l); })) {
+        lines.forEach(function (l) { msgs.push(l); });
+      } else msgs.push(b);
+    });
+    return msgs.map(parseOne).filter(Boolean);
+  }
+
+  var SAMPLE =
+    "Rs.450.00 debited from A/C XX4521 on 27-10-26 to VPA swiggy@icici. UPI Ref 629488123. Avl Bal Rs.18,240.55\n\n" +
+    "INR 1,299.00 spent on HDFC Bank Card XX9034 at AMAZON PAY INDIA on 28-Oct-26. Avl limit Rs.84,000\n\n" +
+    "Rs 3,500 paid to BESCOM electricity bill on 25/10/2026\n\n" +
+    "spent 120 on auto to office\n\n" +
+    "Rs.2,000.00 withdrawn at ATM on 24-10-26. Avl Bal Rs.16,240\n\n" +
+    "Rs.15,000 credited to your a/c XX4521 on 01-10-26 by salary";
+
+  /* ---------- auth & crypto ---------- */
+  function b64(buf) { var s = ""; new Uint8Array(buf).forEach(function (b) { s += String.fromCharCode(b); }); return btoa(s); }
+  function unb64(s) { var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
+  async function hashPw(pw, saltB64) {
+    var salt = saltB64 ? unb64(saltB64) : crypto.getRandomValues(new Uint8Array(16));
+    var key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    var bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt, iterations: 150000, hash: "SHA-256" }, key, 256);
+    return { salt: saltB64 || b64(salt), hash: b64(bits) };
+  }
+
+  var users = lsGet("kh_users", {});
+  var user = null;
+  var data = { expenses: [], lastBackup: null };
+  var ui = { tab: "overview", month: null, authMode: "create", authErr: "", showPw: false, cands: [], text: "", editing: null, q: "", cat: "all", restoreMsg: null, backupText: "", busy: false };
+
+  function loadSession() {
+    var email = lsGet("kh_session", null);
+    if (email && users[email]) { user = users[email]; loadData(); }
+  }
+  function loadData() {
+    var d = lsGet("kh_data_" + user.id, null);
+    data = d && Array.isArray(d.expenses) ? d : { expenses: [], lastBackup: null };
+  }
+  function persist() { if (user) lsSet("kh_data_" + user.id, data); syncWidget(); }
+  function syncWidget() {
+    try {
+      if (!window.AndroidBridge) return;
+      var mk = monthKey(new Date()), p = mk.split("-");
+      var list = user ? data.expenses.filter(function (e) { return inMonth(e, mk); }) : [];
+      window.AndroidBridge.updateWidget(user ? 1 : 0, money(sumSpend(list)), MONTH_FULL[+p[1] - 1] + " " + p[0], list.length, user ? user.name : "");
+    } catch (e) {}
+  }
+  window.__backupSaved = function () { data.lastBackup = Date.now(); persist(); toast("Backup saved. It is in the location you picked."); render(); };
+
+  async function doAuth(form) {
+    var name = (form.name && form.name.value || "").trim();
+    var email = (form.email.value || "").trim().toLowerCase();
+    var pw = form.pw.value || "";
+    ui.authErr = "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { ui.authErr = "Enter a valid email address."; return render(); }
+    if (!window.crypto || !crypto.subtle) { ui.authErr = "This browser cannot secure passwords. Open the page in an up-to-date browser."; return render(); }
+    ui.busy = true; render();
+    try {
+      if (ui.authMode === "create") {
+        if (!name) throw new Error("Enter your name.");
+        if (pw.length < 8) throw new Error("Use a password of at least 8 characters.");
+        if (users[email]) throw new Error("An account with this email already exists. Sign in instead.");
+        var h = await hashPw(pw);
+        users[email] = { id: uid(), name: name, email: email, salt: h.salt, hash: h.hash, created: Date.now() };
+        lsSet("kh_users", users);
+      } else {
+        var u = users[email];
+        if (!u) throw new Error("No account found for this email on this device. Create one, or restore from a backup.");
+        var h2 = await hashPw(pw, u.salt);
+        if (h2.hash !== u.hash) throw new Error("Wrong password.");
+      }
+      user = users[email]; lsSet("kh_session", email); loadData();
+      ui.tab = "overview"; ui.authErr = "";
+    } catch (e) { ui.authErr = e.message || "Something went wrong."; }
+    ui.busy = false; render();
+  }
+  function signOut() { lsSet("kh_session", null); user = null; data = { expenses: [], lastBackup: null }; ui.cands = []; ui.text = ""; syncWidget(); render(); }
+
+  /* ---------- derived ---------- */
+  function monthKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+  function curMonth() { if (!ui.month) ui.month = monthKey(new Date()); return ui.month; }
+  function shiftMonth(delta) {
+    var p = curMonth().split("-"); var d = new Date(+p[0], +p[1] - 1 + delta, 1); ui.month = monthKey(d);
+  }
+  function inMonth(e, mk) { return e.date.slice(0, 7) === mk; }
+  function sumSpend(list) { return list.filter(function (e) { return e.type === "debit"; }).reduce(function (a, e) { return a + e.amount; }, 0); }
+
+  /* ---------- views ---------- */
+  function renderAuth() {
+    var create = ui.authMode === "create";
+    return '<div class="wrap auth">' +
+      '<div class="stack-gap"><div class="brand"><b>Spending tracker</b><i>\u20B9</i></div>' +
+      '<h1 style="font-size:28px;line-height:1.15">Every rupee you spend, sorted into a category.</h1>' +
+      '<p class="muted" style="margin:0">Paste bank and UPI messages. The tracker reads the amount, the merchant and the date, then files each one under the right category.</p></div>' +
+      '<div class="card stack-gap">' +
+      '<div class="seg" role="group" aria-label="Account"><button type="button" data-act="mode" data-v="create" aria-pressed="' + create + '">Create account</button><button type="button" data-act="mode" data-v="signin" aria-pressed="' + !create + '">Sign in</button></div>' +
+      (ui.authErr ? '<div class="err" role="alert">' + esc(ui.authErr) + '</div>' : '') +
+      '<form id="authForm" class="stack-gap" autocomplete="on">' +
+      (create ? '<label class="field"><span>Your name</span><input type="text" id="f-name" name="name" autocomplete="name" required></label>' : '') +
+      '<label class="field"><span>Email</span><input type="email" id="f-email" name="email" autocomplete="email" required></label>' +
+      '<label class="field"><span>Password</span><div class="pw"><input type="' + (ui.showPw ? 'text' : 'password') + '" id="f-pw" name="pw" autocomplete="' + (create ? 'new-password' : 'current-password') + '" required><button type="button" data-act="showpw">' + (ui.showPw ? 'Hide' : 'Show') + '</button></div></label>' +
+      '<button class="btn primary" type="submit"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? 'Please wait' : (create ? 'Create account' : 'Sign in')) + '</button>' +
+      '</form>' +
+      '<p class="muted small" style="margin:0">Your account and entries are stored in this browser, and the password is kept only as a salted hash. Use the Backup tab to save a copy to your Google account.</p>' +
+      '</div></div>';
+  }
+
+  function renderOverview() {
+    var mk = curMonth(), p = mk.split("-");
+    var list = data.expenses.filter(function (e) { return inMonth(e, mk); });
+    var spend = sumSpend(list);
+    var received = list.filter(function (e) { return e.type === "credit"; }).reduce(function (a, e) { return a + e.amount; }, 0);
+    var prevD = new Date(+p[0], +p[1] - 2, 1), prevK = monthKey(prevD);
+    var prevSpend = sumSpend(data.expenses.filter(function (e) { return inMonth(e, prevK); }));
+    var now = new Date(), isCur = mk === monthKey(now);
+    var days = isCur ? now.getDate() : new Date(+p[0], +p[1], 0).getDate();
+    var avg = spend / Math.max(1, days);
+    var byCat = {};
+    list.filter(function (e) { return e.type === "debit"; }).forEach(function (e) { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
+    var cats = Object.keys(byCat).sort(function (a, b) { return byCat[b] - byCat[a]; });
+    var delta = prevSpend > 0 ? Math.round((spend - prevSpend) / prevSpend * 100) : null;
+
+    var h = '<div class="stack-gap">' +
+      '<div class="month"><button class="btn" data-act="month" data-v="-1" aria-label="Previous month">\u2039</button>' +
+      '<h2 style="font-size:18px">' + MONTH_FULL[+p[1] - 1] + ' ' + p[0] + '</h2>' +
+      '<button class="btn" data-act="month" data-v="1" aria-label="Next month">\u203A</button></div>' +
+      '<div class="card hero"><span class="label">Spent</span><div class="big num">' + money(spend) + '</div>' +
+      '<div class="muted small">' + (delta == null ? 'No spending recorded last month to compare.' : (delta === 0 ? 'Same as last month.' : Math.abs(delta) + '% ' + (delta > 0 ? 'more' : 'less') + ' than last month (' + money(prevSpend) + ').')) + '</div>' +
+      '<div class="stats" style="margin-top:12px"><div><div class="label">Entries</div><div class="num">' + list.length + '</div></div>' +
+      '<div><div class="label">Per day</div><div class="num">' + money(avg) + '</div></div>' +
+      '<div><div class="label">Received</div><div class="num">' + money(received) + '</div></div></div></div>';
+
+    if (!list.length) {
+      h += '<div class="card empty"><p style="margin:0 0 12px"><b>No entries for this month yet.</b><br>Paste your bank messages and they show up here, grouped by category.</p><a class="btn primary" href="#add">Add spendings</a></div>';
+    } else {
+      h += '<div class="card stack-gap"><h3 style="font-size:17px">By category</h3>';
+      cats.forEach(function (c) {
+        var pct = spend ? byCat[c] / spend * 100 : 0;
+        h += '<div class="bar-row"><span>' + esc(c) + '</span><span class="num">' + money(byCat[c]) + ' <span class="muted small">' + Math.round(pct) + '%</span></span>' +
+          '<div class="bar" role="img" aria-label="' + esc(c) + ' ' + Math.round(pct) + ' percent"><i style="width:' + Math.max(2, pct).toFixed(1) + '%"></i></div></div>';
+      });
+      h += '</div>';
+      var recent = list.slice().sort(function (a, b) { return b.date.localeCompare(a.date) || b.created - a.created; }).slice(0, 5);
+      h += '<div class="card stack-gap"><div class="row" style="justify-content:space-between"><h3 style="font-size:17px">Latest</h3><a href="#history" class="small" style="color:var(--accent);font-weight:600">See all</a></div>';
+      recent.forEach(function (e) {
+        h += '<div class="bar-row" style="grid-template-columns:minmax(0,1fr) auto"><div style="min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.merchant) + '</div><div class="muted small">' + esc(e.category) + ' \u00B7 ' + prettyDate(e.date) + '</div></div><div class="num" style="' + (e.type === 'credit' ? 'color:var(--good)' : '') + '">' + (e.type === 'credit' ? '+' : '') + money(e.amount) + '</div></div>';
+      });
+      h += '</div>';
+    }
+    if (needsBackupNudge()) {
+      h += '<div class="hint">Your entries have not been backed up ' + (data.lastBackup ? 'in over a week' : 'yet') + '. <a href="#backup" style="color:var(--accent);font-weight:600">Back up now</a></div>';
+    }
+    return h + '</div>';
+  }
+
+  function needsBackupNudge() {
+    if (!data.expenses.length) return false;
+    if (!data.lastBackup) return true;
+    return Date.now() - data.lastBackup > 7 * 864e5;
+  }
+
+  function catOptions(sel) {
+    return CAT_NAMES.map(function (c) { return '<option' + (c === sel ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join("");
+  }
+
+  function renderAdd() {
+    var h = '<div class="stack-gap">' +
+      '<div><h2 style="font-size:22px">Add spendings</h2><p class="muted" style="margin:4px 0 0">Paste one or many messages. Separate messages with a blank line.</p></div>' +
+      '<div class="card stack-gap"><label class="field"><span>Bank, UPI or card messages</span>' +
+      '<textarea id="msgs" placeholder="Rs.450 debited from A/C XX4521 to VPA swiggy@icici on 27-10-26&#10;&#10;spent 120 on auto to office">' + esc(ui.text) + '</textarea></label>' +
+      '<div class="row"><button class="btn primary" data-act="parse">Read messages</button><button class="btn ghost" data-act="sample">Try sample messages</button></div></div>';
+
+    if (ui.cands.length) {
+      var picked = ui.cands.filter(function (c) { return c.on; }).length;
+      h += '<div class="row" style="justify-content:space-between"><h3 style="font-size:18px">Found ' + ui.cands.length + ' ' + (ui.cands.length === 1 ? 'entry' : 'entries') + '</h3><span class="muted small">Check each one before adding</span></div>';
+      ui.cands.forEach(function (c, i) {
+        h += '<div class="cand' + (c.on ? '' : ' off') + '" data-i="' + i + '">' +
+          '<div class="row" style="justify-content:space-between"><label class="chk"><input type="checkbox" data-f="on"' + (c.on ? ' checked' : '') + '> Add this</label>' +
+          (c.dup ? '<span class="pill warn">Possible duplicate</span>' : '') + (c.type === 'credit' ? '<span class="pill">Money received</span>' : '') + '</div>' +
+          '<div class="grid2 stack"><label class="field"><span>Amount (\u20B9)</span><input type="number" inputmode="decimal" step="0.01" min="0" data-f="amount" value="' + c.amount + '"></label>' +
+          '<label class="field"><span>Date</span><input type="date" data-f="date" value="' + esc(c.date) + '"></label></div>' +
+          '<label class="field"><span>Paid to</span><input type="text" data-f="merchant" value="' + esc(c.merchant) + '"></label>' +
+          '<div class="grid2 stack"><label class="field"><span>Category</span><select data-f="category">' + catOptions(c.category) + '</select></label>' +
+          '<label class="field"><span>Type</span><select data-f="type"><option value="debit"' + (c.type === 'debit' ? ' selected' : '') + '>Spent</option><option value="credit"' + (c.type === 'credit' ? ' selected' : '') + '>Received</option></select></label></div>' +
+          '<div class="src">' + esc(c.source) + '</div></div>';
+      });
+      h += '<div class="row"><button class="btn primary" data-act="addall"' + (picked ? '' : ' disabled') + '>Add ' + picked + ' to my spendings</button><button class="btn ghost" data-act="clear">Clear</button></div>';
+    } else if (ui.parsedOnce) {
+      h += '<div class="err">No amounts found. Messages need a number such as Rs.450 or \u20B9450, for example: spent 250 on pizza.</div>';
+    }
+
+    h += '<details class="card"><summary style="cursor:pointer;font-weight:600">Add one entry by hand</summary><form id="manual" class="stack-gap" style="margin-top:14px">' +
+      '<div class="grid2 stack"><label class="field"><span>Amount (\u20B9)</span><input type="number" id="m-amt" inputmode="decimal" step="0.01" min="0" required></label>' +
+      '<label class="field"><span>Date</span><input type="date" id="m-date" value="' + today() + '" required></label></div>' +
+      '<label class="field"><span>Paid to or note</span><input type="text" id="m-merchant" placeholder="e.g. Chai at station" required></label>' +
+      '<div class="grid2 stack"><label class="field"><span>Category</span><select id="m-cat">' + catOptions('Other') + '</select></label>' +
+      '<label class="field"><span>Type</span><select id="m-type"><option value="debit">Spent</option><option value="credit">Received</option></select></label></div>' +
+      '<button class="btn primary" type="submit">Save entry</button></form></details>';
+    return h + '</div>';
+  }
+
+  function filteredList() {
+    var q = ui.q.trim().toLowerCase();
+    return data.expenses.filter(function (e) {
+      if (ui.cat !== "all" && e.category !== ui.cat) return false;
+      if (q && (e.merchant + " " + e.category + " " + (e.note || "")).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return b.date.localeCompare(a.date) || b.created - a.created; });
+  }
+
+  function renderHistory() {
+    var list = filteredList();
+    var h = '<div class="stack-gap"><h2 style="font-size:22px">History</h2>' +
+      '<div class="filters"><label class="field"><span>Search</span><input type="text" id="q" value="' + esc(ui.q) + '" placeholder="Merchant or category"></label>' +
+      '<label class="field"><span>Category</span><select id="catf"><option value="all">All</option>' + CAT_NAMES.map(function (c) { return '<option' + (ui.cat === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join("") + '</select></label></div>';
+    if (!list.length) {
+      h += '<div class="card empty">' + (data.expenses.length ? 'Nothing matches this filter.' : 'No entries yet. <a href="#add" style="color:var(--accent);font-weight:600">Add your first spendings</a>.') + '</div>';
+      return h + '</div>';
+    }
+    var total = sumSpend(list);
+    h += '<div class="muted small">' + list.length + ' entries \u00B7 ' + money(total) + ' spent</div><div>';
+    var last = "";
+    list.forEach(function (e) {
+      if (e.date !== last) {
+        var dayTotal = sumSpend(list.filter(function (x) { return x.date === e.date; }));
+        h += '<div class="day"><span class="label">' + prettyDate(e.date) + '</span><span class="num muted small">' + money(dayTotal) + '</span></div>'; last = e.date;
+      }
+      var open = ui.editing === e.id;
+      h += '<div class="tx" data-id="' + e.id + '"><button class="head" data-act="toggle" aria-expanded="' + open + '"><div class="m">' + esc(e.merchant) + '</div>' +
+        '<div class="a ' + (e.type === 'credit' ? 'in' : '') + '">' + (e.type === 'credit' ? '+' : '') + money(e.amount) + '</div><div class="c">' + esc(e.category) + '</div><div></div></button>';
+      if (open) {
+        h += '<div class="edit"><div class="grid2 stack"><label class="field"><span>Amount (\u20B9)</span><input type="number" inputmode="decimal" step="0.01" data-e="amount" value="' + e.amount + '"></label>' +
+          '<label class="field"><span>Date</span><input type="date" data-e="date" value="' + esc(e.date) + '"></label></div>' +
+          '<label class="field"><span>Paid to</span><input type="text" data-e="merchant" value="' + esc(e.merchant) + '"></label>' +
+          '<label class="field"><span>Category</span><select data-e="category">' + catOptions(e.category) + '</select></label>' +
+          '<div class="row"><button class="btn primary" data-act="saveedit">Save</button>' +
+          (ui.confirmDel === e.id ? '<button class="btn danger" data-act="del">Yes, delete</button><button class="btn ghost" data-act="canceldel">Keep</button>' : '<button class="btn danger" data-act="askdel">Delete</button>') +
+          '</div></div>';
+      }
+      h += '</div>';
+    });
+    return h + '</div></div>';
+  }
+
+  function backupPayload() {
+    return JSON.stringify({ app: "spending-tracker", version: 1, exportedAt: new Date().toISOString(), account: { name: user.name, email: user.email }, expenses: data.expenses });
+  }
+
+  function renderBackup() {
+    var last = data.lastBackup ? new Date(data.lastBackup).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "Never";
+    var h = '<div class="stack-gap"><div><h2 style="font-size:22px">Backup to Google</h2>' +
+      '<p class="muted" style="margin:4px 0 0">Keep a copy of your ' + data.expenses.length + ' entries in your Google account, so a new phone or cleared browser never loses them.</p></div>' +
+      '<div class="card stack-gap"><div class="row" style="justify-content:space-between"><span class="label">Last backup</span><span class="num small">' + esc(last) + '</span></div>' +
+      '<ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px">' +
+      '<li>Save the backup file.' + (ui.canDownload ? '' : ' (Use Copy backup if saving is unavailable.)') + '</li>' +
+      (window.AndroidBridge ? '<li>In the picker that opens, choose <b>Drive</b> as the location and save.</li></ol>' : '<li>Open Google Drive and upload it with <b>New \u203A File upload</b>.</li></ol>') +
+      '<div class="row">' + (ui.canDownload ? '<button class="btn primary" data-act="savefile">Save backup file</button>' : '') +
+      '<button class="btn' + (ui.canDownload ? '' : ' primary') + '" data-act="copybackup">Copy backup</button>' +
+      '<a class="btn" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noopener">Open Google Drive</a></div>' +
+      '<p class="muted small" style="margin:0">Instant, automatic Drive sync needs the Google Drive connector in Claude, which is not connected here yet. Until then the file route above is the way to get your data into Google.</p></div>' +
+      '<div class="card stack-gap"><h3 style="font-size:17px">Restore</h3>' +
+      '<p class="muted small" style="margin:0">Choose a Spending tracker backup file, or paste the copied backup text. Entries already here are kept; only new ones are added.</p>' +
+      '<input type="file" id="restoreFile" accept=".json,application/json,text/plain">' +
+      '<label class="field"><span>Or paste backup text</span><textarea id="restoreText" class="codebox" placeholder="{&quot;app&quot;:&quot;spending-tracker&quot;,...}">' + esc(ui.backupText) + '</textarea></label>' +
+      '<button class="btn" data-act="restore">Restore entries</button>' +
+      (ui.restoreMsg ? '<div class="' + (ui.restoreMsg.ok ? 'ok' : 'err') + '" role="status">' + esc(ui.restoreMsg.text) + '</div>' : '') + '</div>' +
+      '<div class="card stack-gap"><h3 style="font-size:17px">Account</h3><div class="muted small">Signed in as ' + esc(user.name) + ' (' + esc(user.email) + ')</div><div><button class="btn" data-act="signout">Sign out</button></div></div></div>';
+    return h;
+  }
+
+  var TABS = [["overview", "Overview"], ["add", "Add"], ["history", "History"], ["backup", "Backup"]];
+  function renderShell() {
+    var body = ui.tab === "add" ? renderAdd() : ui.tab === "history" ? renderHistory() : ui.tab === "backup" ? renderBackup() : renderOverview();
+    return '<div class="wrap"><header class="top"><div class="brand"><b>Spending tracker</b><i>\u20B9</i></div><div class="who"><span class="muted small">' + esc(user.name) + '</span></div></header>' +
+      '<main>' + body + '</main></div>' +
+      '<div class="tabs"><nav aria-label="Sections">' + TABS.map(function (t) {
+        return '<a href="#' + t[0] + '"' + (ui.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
+      }).join("") + '</nav></div>';
+  }
+
+  var render = function () {
+    var active = document.activeElement, id = active && active.id, selS, selE;
+    try { selS = active.selectionStart; selE = active.selectionEnd; } catch (e) {}
+    $app.innerHTML = user ? renderShell() : renderAuth();
+    if (id) {
+      var el = document.getElementById(id);
+      if (el) { el.focus(); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
+    }
+  };
+
+  /* ---------- actions ---------- */
+  function isDup(c) {
+    return data.expenses.some(function (e) { return e.amount === c.amount && e.date === c.date && e.merchant.toLowerCase() === c.merchant.toLowerCase(); });
+  }
+  function addEntry(o) {
+    data.expenses.push({ id: uid(), amount: Math.round(o.amount * 100) / 100, type: o.type, merchant: o.merchant, category: o.category, date: o.date, source: o.src || "manual", created: Date.now() });
+  }
+
+  function handleClick(ev) {
+    var t = ev.target.closest("[data-act]");
+    if (!t) return;
+    var act = t.getAttribute("data-act");
+    if (act === "mode") { ui.authMode = t.getAttribute("data-v"); ui.authErr = ""; render(); }
+    else if (act === "showpw") { ui.showPw = !ui.showPw; render(); }
+    else if (act === "month") { shiftMonth(+t.getAttribute("data-v")); render(); }
+    else if (act === "sample") { ui.text = SAMPLE; ui.cands = []; ui.parsedOnce = false; render(); }
+    else if (act === "parse") {
+      var ta = document.getElementById("msgs"); ui.text = ta ? ta.value : ui.text;
+      var found = parseMessages(ui.text);
+      ui.cands = found.map(function (c) { c.dup = isDup(c); c.on = !c.dup; return c; });
+      ui.parsedOnce = true; render();
+    }
+    else if (act === "clear") { ui.cands = []; ui.text = ""; ui.parsedOnce = false; render(); }
+    else if (act === "addall") {
+      var n = 0;
+      ui.cands.forEach(function (c) { if (c.on && c.amount > 0) { addEntry({ amount: +c.amount, type: c.type, merchant: c.merchant || "Unknown", category: c.category, date: c.date || today(), src: c.source }); n++; } });
+      persist(); ui.cands = []; ui.text = ""; ui.parsedOnce = false; toast(n + (n === 1 ? " entry added" : " entries added")); location.hash = "overview"; ui.tab = "overview"; render();
+    }
+    else if (act === "toggle") { var id = t.closest(".tx").getAttribute("data-id"); ui.editing = ui.editing === id ? null : id; ui.confirmDel = null; render(); }
+    else if (act === "saveedit") {
+      var box = t.closest(".tx"), eid = box.getAttribute("data-id");
+      var e = data.expenses.filter(function (x) { return x.id === eid; })[0];
+      if (e) {
+        var amt = parseFloat(box.querySelector('[data-e=amount]').value);
+        if (!(amt > 0)) return toast("Enter an amount above zero");
+        e.amount = amt; e.date = box.querySelector('[data-e=date]').value || e.date;
+        e.merchant = box.querySelector('[data-e=merchant]').value.trim() || e.merchant;
+        e.category = box.querySelector('[data-e=category]').value;
+        persist(); ui.editing = null; toast("Saved"); render();
+      }
+    }
+    else if (act === "askdel") { ui.confirmDel = t.closest(".tx").getAttribute("data-id"); render(); }
+    else if (act === "canceldel") { ui.confirmDel = null; render(); }
+    else if (act === "del") {
+      var did = t.closest(".tx").getAttribute("data-id");
+      data.expenses = data.expenses.filter(function (x) { return x.id !== did; }); persist(); ui.editing = null; ui.confirmDel = null; toast("Deleted"); render();
+    }
+    else if (act === "signout") signOut();
+    else if (act === "copybackup") {
+      var txt = backupPayload();
+      function done() { data.lastBackup = Date.now(); persist(); toast("Backup copied. Paste it into a Google Doc or Keep note."); render(); }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt); done(); });
+      else { fallbackCopy(txt); done(); }
+    }
+    else if (act === "savefile") saveFile();
+    else if (act === "restore") {
+      var rt = document.getElementById("restoreText"); ui.backupText = rt ? rt.value : "";
+      if (!ui.backupText.trim()) { ui.restoreMsg = { ok: false, text: "Choose a backup file or paste the backup text first." }; return render(); }
+      doRestore(ui.backupText);
+    }
+  }
+  function fallbackCopy(txt) {
+    ui.backupText = txt; ui.tab = "backup"; render();
+    var ta = document.getElementById("restoreText"); if (ta) { ta.focus(); ta.select(); }
+  }
+  async function saveFile() {
+    if (window.AndroidBridge && window.AndroidBridge.saveBackup) {
+      window.AndroidBridge.saveBackup("spending-tracker-backup-" + today() + ".json", backupPayload());
+      return;
+    }
+    try {
+      var dl = await window.claude.use("downloads");
+      if (!dl) throw { code: "unavailable" };
+      await dl.save({ filename: "spending-tracker-backup-" + today() + ".json", data: backupPayload() });
+      data.lastBackup = Date.now(); persist(); toast("Backup file saved. Upload it to Google Drive."); render();
+    } catch (e) {
+      if (e && e.code === "declined") return;
+      toast("Saving a file is not available here. Use Copy backup."); ui.canDownload = false; render();
+    }
+  }
+  function doRestore(text) {
+    try {
+      var o = JSON.parse(text);
+      if (!o || o.app !== "spending-tracker" || !Array.isArray(o.expenses)) throw new Error("bad");
+      var have = {}; data.expenses.forEach(function (e) { have[e.id] = 1; });
+      var added = 0;
+      o.expenses.forEach(function (e) {
+        if (!e || !(e.amount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(e.date || "") || have[e.id]) return;
+        data.expenses.push({ id: e.id || uid(), amount: +e.amount, type: e.type === "credit" ? "credit" : "debit", merchant: String(e.merchant || "Unknown").slice(0, 60), category: CAT_NAMES.indexOf(e.category) >= 0 ? e.category : "Other", date: e.date, source: String(e.source || "").slice(0, 400), created: e.created || Date.now() });
+        added++;
+      });
+      persist(); ui.backupText = ""; ui.restoreMsg = { ok: true, text: added + " entries restored." + (added === 0 ? " Everything in this backup was already here." : "") }; render();
+    } catch (e) { ui.restoreMsg = { ok: false, text: "That does not look like a Spending tracker backup. Choose the .json file you saved or copied." }; render(); }
+  }
+
+  function handleInput(ev) {
+    var t = ev.target;
+    if (t.id === "msgs") { ui.text = t.value; return; }
+    if (t.id === "q") { ui.q = t.value; render(); return; }
+    if (t.id === "restoreText") { ui.backupText = t.value; return; }
+    var cand = t.closest && t.closest(".cand");
+    if (cand && t.getAttribute("data-f")) {
+      var c = ui.cands[+cand.getAttribute("data-i")], f = t.getAttribute("data-f");
+      if (f === "on") { c.on = t.checked; render(); return; }
+      if (f === "amount") c.amount = parseFloat(t.value) || 0;
+      else c[f] = t.value;
+      if (f === "category" || f === "type") render();
+    }
+  }
+  function handleChange(ev) {
+    var t = ev.target;
+    if (t.id === "catf") { ui.cat = t.value; render(); }
+    else if (t.id === "restoreFile" && t.files && t.files[0]) {
+      var fr = new FileReader();
+      fr.onload = function () { doRestore(String(fr.result)); };
+      fr.onerror = function () { ui.restoreMsg = { ok: false, text: "That file could not be read." }; render(); };
+      fr.readAsText(t.files[0]);
+    }
+    else if (t.getAttribute && t.getAttribute("data-f") === "type") handleInput(ev);
+  }
+  function handleSubmit(ev) {
+    ev.preventDefault();
+    if (ev.target.id === "authForm") return doAuth(ev.target);
+    if (ev.target.id === "manual") {
+      var amt = parseFloat(document.getElementById("m-amt").value);
+      var merchant = document.getElementById("m-merchant").value.trim();
+      if (!(amt > 0) || !merchant) return toast("Enter an amount and who you paid");
+      addEntry({ amount: amt, type: document.getElementById("m-type").value, merchant: merchant, category: document.getElementById("m-cat").value, date: document.getElementById("m-date").value || today(), src: "manual" });
+      persist(); toast("Entry saved"); ev.target.reset(); document.getElementById("m-date").value = today();
+    }
+  }
+  function route() {
+    var h = (location.hash || "").replace("#", "");
+    ui.tab = ["overview", "add", "history", "backup"].indexOf(h) >= 0 ? h : "overview";
+    ui.editing = null; ui.confirmDel = null;
+    render(); window.scrollTo(0, 0);
+  }
+
+  document.addEventListener("click", handleClick);
+  document.addEventListener("input", handleInput);
+  document.addEventListener("change", handleChange);
+  document.addEventListener("submit", handleSubmit);
+  window.addEventListener("hashchange", route);
+
+  loadSession();
+  ui.canDownload = true;
+  route(); syncWidget();
+  try {
+    if (window.AndroidBridge) return;
+    if (window.claude && window.claude.use) window.claude.use("downloads").then(function (d) { if (!d) { ui.canDownload = false; render(); } }, function () { ui.canDownload = false; render(); });
+  } catch (e) {}
+})();
+</script>
+
+</body></html>
