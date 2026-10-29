@@ -321,24 +321,19 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     "Rs.2,000.00 withdrawn at ATM on 24-10-26. Avl Bal Rs.16,240\n\n" +
     "Rs.15,000 credited to your a/c XX4521 on 01-10-26 by salary";
 
-  /* ---------- auth & crypto ---------- */
-  function b64(buf) { var s = ""; new Uint8Array(buf).forEach(function (b) { s += String.fromCharCode(b); }); return btoa(s); }
-  function unb64(s) { var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
-  async function hashPw(pw, saltB64) {
-    var salt = saltB64 ? unb64(saltB64) : crypto.getRandomValues(new Uint8Array(16));
-    var key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
-    var bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt, iterations: 150000, hash: "SHA-256" }, key, 256);
-    return { salt: saltB64 || b64(salt), hash: b64(bits) };
-  }
-
+  /* ---------- identity: no sign-in, one local profile ---------- */
   var users = lsGet("kh_users", {});
   var user = null;
   var data = { expenses: [], lastBackup: null };
   var ui = { tab: "overview", month: null, authMode: "create", authErr: "", showPw: false, cands: [], text: "", editing: null, q: "", cat: "all", restoreMsg: null, backupText: "", busy: false };
 
   function loadSession() {
-    var email = lsGet("kh_session", null);
-    if (email && users[email]) { user = users[email]; loadData(); }
+    // The app opens straight in. Entries made under an older account on this device are kept.
+    var email = lsGet("kh_session", null), keys = Object.keys(users);
+    if (email && users[email]) user = users[email];
+    else if (keys.length) user = users[keys[0]];
+    else user = { id: "local", name: "", email: "" };
+    loadData();
   }
   function loadData() {
     var d = lsGet("kh_data_" + user.id, null);
@@ -355,35 +350,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   }
   window.__backupSaved = function () { data.lastBackup = Date.now(); persist(); toast("Backup saved. It is in the location you picked."); render(); };
 
-  async function doAuth(form) {
-    var name = (form.name && form.name.value || "").trim();
-    var email = (form.email.value || "").trim().toLowerCase();
-    var pw = form.pw.value || "";
-    ui.authErr = "";
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { ui.authErr = "Enter a valid email address."; return render(); }
-    if (!window.crypto || !crypto.subtle) { ui.authErr = "This browser cannot secure passwords. Open the page in an up-to-date browser."; return render(); }
-    ui.busy = true; render();
-    try {
-      if (ui.authMode === "create") {
-        if (!name) throw new Error("Enter your name.");
-        if (pw.length < 8) throw new Error("Use a password of at least 8 characters.");
-        if (users[email]) throw new Error("An account with this email already exists. Sign in instead.");
-        var h = await hashPw(pw);
-        users[email] = { id: uid(), name: name, email: email, salt: h.salt, hash: h.hash, created: Date.now() };
-        lsSet("kh_users", users);
-      } else {
-        var u = users[email];
-        if (!u) throw new Error("No account found for this email on this device. Create one, or restore from a backup.");
-        var h2 = await hashPw(pw, u.salt);
-        if (h2.hash !== u.hash) throw new Error("Wrong password.");
-      }
-      user = users[email]; lsSet("kh_session", email); loadData();
-      ui.tab = "overview"; ui.authErr = "";
-    } catch (e) { ui.authErr = e.message || "Something went wrong."; }
-    ui.busy = false; render();
-  }
-  function signOut() { lsSet("kh_session", null); user = null; data = { expenses: [], lastBackup: null }; ui.cands = []; ui.text = ""; syncWidget(); render(); }
-
   /* ---------- derived ---------- */
   function monthKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
   function curMonth() { if (!ui.month) ui.month = monthKey(new Date()); return ui.month; }
@@ -394,25 +360,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   function sumSpend(list) { return list.filter(function (e) { return e.type === "debit"; }).reduce(function (a, e) { return a + e.amount; }, 0); }
 
   /* ---------- views ---------- */
-  function renderAuth() {
-    var create = ui.authMode === "create";
-    return '<div class="wrap auth">' +
-      '<div class="stack-gap"><div class="brand"><b>Spending tracker</b><i>\u20B9</i></div>' +
-      '<h1 style="font-size:28px;line-height:1.15">Every rupee you spend, sorted into a category.</h1>' +
-      '<p class="muted" style="margin:0">Paste bank and UPI messages. The tracker reads the amount, the merchant and the date, then files each one under the right category.</p></div>' +
-      '<div class="card stack-gap">' +
-      '<div class="seg" role="group" aria-label="Account"><button type="button" data-act="mode" data-v="create" aria-pressed="' + create + '">Create account</button><button type="button" data-act="mode" data-v="signin" aria-pressed="' + !create + '">Sign in</button></div>' +
-      (ui.authErr ? '<div class="err" role="alert">' + esc(ui.authErr) + '</div>' : '') +
-      '<form id="authForm" class="stack-gap" autocomplete="on">' +
-      (create ? '<label class="field"><span>Your name</span><input type="text" id="f-name" name="name" autocomplete="name" required></label>' : '') +
-      '<label class="field"><span>Email</span><input type="email" id="f-email" name="email" autocomplete="email" required></label>' +
-      '<label class="field"><span>Password</span><div class="pw"><input type="' + (ui.showPw ? 'text' : 'password') + '" id="f-pw" name="pw" autocomplete="' + (create ? 'new-password' : 'current-password') + '" required><button type="button" data-act="showpw">' + (ui.showPw ? 'Hide' : 'Show') + '</button></div></label>' +
-      '<button class="btn primary" type="submit"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? 'Please wait' : (create ? 'Create account' : 'Sign in')) + '</button>' +
-      '</form>' +
-      '<p class="muted small" style="margin:0">Your account and entries are stored in this browser, and the password is kept only as a salted hash. Use the Backup tab to save a copy to your Google account.</p>' +
-      '</div></div>';
-  }
-
   function renderOverview() {
     var mk = curMonth(), p = mk.split("-");
     var list = data.expenses.filter(function (e) { return inMonth(e, mk); });
@@ -551,7 +498,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   }
 
   function backupPayload() {
-    return JSON.stringify({ app: "spending-tracker", version: 1, exportedAt: new Date().toISOString(), account: { name: user.name, email: user.email }, expenses: data.expenses });
+    return JSON.stringify({ app: "spending-tracker", version: 1, exportedAt: new Date().toISOString(), expenses: data.expenses });
   }
 
   function renderBackup() {
@@ -572,14 +519,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       '<label class="field"><span>Or paste backup text</span><textarea id="restoreText" class="codebox" placeholder="{&quot;app&quot;:&quot;spending-tracker&quot;,...}">' + esc(ui.backupText) + '</textarea></label>' +
       '<button class="btn" data-act="restore">Restore entries</button>' +
       (ui.restoreMsg ? '<div class="' + (ui.restoreMsg.ok ? 'ok' : 'err') + '" role="status">' + esc(ui.restoreMsg.text) + '</div>' : '') + '</div>' +
-      '<div class="card stack-gap"><h3 style="font-size:17px">Account</h3><div class="muted small">Signed in as ' + esc(user.name) + ' (' + esc(user.email) + ')</div><div><button class="btn" data-act="signout">Sign out</button></div></div></div>';
+      '</div>';
     return h;
   }
 
   var TABS = [["overview", "Overview"], ["add", "Add"], ["history", "History"], ["backup", "Backup"]];
   function renderShell() {
     var body = ui.tab === "add" ? renderAdd() : ui.tab === "history" ? renderHistory() : ui.tab === "backup" ? renderBackup() : renderOverview();
-    return '<div class="wrap"><header class="top"><div class="brand"><b>Spending tracker</b><i>\u20B9</i></div><div class="who"><span class="muted small">' + esc(user.name) + '</span></div></header>' +
+    return '<div class="wrap"><header class="top"><div class="brand"><b>Spending tracker</b><i>\u20B9</i></div></header>' +
       '<main>' + body + '</main></div>' +
       '<div class="tabs"><nav aria-label="Sections">' + TABS.map(function (t) {
         return '<a href="#' + t[0] + '"' + (ui.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</a>';
@@ -589,7 +536,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   var render = function () {
     var active = document.activeElement, id = active && active.id, selS, selE;
     try { selS = active.selectionStart; selE = active.selectionEnd; } catch (e) {}
-    $app.innerHTML = user ? renderShell() : renderAuth();
+    $app.innerHTML = renderShell();
     if (id) {
       var el = document.getElementById(id);
       if (el) { el.focus(); try { if (selS != null) el.setSelectionRange(selS, selE); } catch (e) {} }
@@ -608,9 +555,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     var t = ev.target.closest("[data-act]");
     if (!t) return;
     var act = t.getAttribute("data-act");
-    if (act === "mode") { ui.authMode = t.getAttribute("data-v"); ui.authErr = ""; render(); }
-    else if (act === "showpw") { ui.showPw = !ui.showPw; render(); }
-    else if (act === "month") { shiftMonth(+t.getAttribute("data-v")); render(); }
+    if (act === "month") { shiftMonth(+t.getAttribute("data-v")); render(); }
     else if (act === "sample") { ui.text = SAMPLE; ui.cands = []; ui.parsedOnce = false; render(); }
     else if (act === "parse") {
       var ta = document.getElementById("msgs"); ui.text = ta ? ta.value : ui.text;
@@ -643,7 +588,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
       var did = t.closest(".tx").getAttribute("data-id");
       data.expenses = data.expenses.filter(function (x) { return x.id !== did; }); persist(); ui.editing = null; ui.confirmDel = null; toast("Deleted"); render();
     }
-    else if (act === "signout") signOut();
     else if (act === "copybackup") {
       var txt = backupPayload();
       function done() { data.lastBackup = Date.now(); persist(); toast("Backup copied. Paste it into a Google Doc or Keep note."); render(); }
@@ -718,7 +662,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   }
   function handleSubmit(ev) {
     ev.preventDefault();
-    if (ev.target.id === "authForm") return doAuth(ev.target);
     if (ev.target.id === "manual") {
       var amt = parseFloat(document.getElementById("m-amt").value);
       var merchant = document.getElementById("m-merchant").value.trim();
